@@ -44,7 +44,11 @@ jobs:
 
       - name: Build desktop bundle
         working-directory: apps/examples/desktop-app
-        run: bunx tauri build --config src-tauri/tauri.release.conf.json
+        # Second overlay disables updater artifacts: createUpdaterArtifacts in
+        # tauri.release.conf.json demands TAURI_SIGNING_PRIVATE_KEY, which a
+        # fork build does not have. Local installs do not need signed update
+        # files, only the official release pipeline does.
+        run: bunx tauri build --config src-tauri/tauri.release.conf.json --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
