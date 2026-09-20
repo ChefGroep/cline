@@ -1,0 +1,61 @@
+name: desktop-linux-local
+
+on:
+  push:
+    branches: [desktop-v0.0.32-linux]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux (x64)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Install Linux bundle dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            rpm
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build SDK packages
+        run: bun run build:sdk
+
+      - name: Build desktop bundle
+        working-directory: apps/examples/desktop-app
+        # Second overlay disables updater artifacts: createUpdaterArtifacts in
+        # tauri.release.conf.json demands TAURI_SIGNING_PRIVATE_KEY, which a
+        # fork build does not have. Local installs do not need signed update
+        # files, only the official release pipeline does.
+        run: bunx tauri build --config src-tauri/tauri.release.conf.json --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cline-desktop-0.0.32-linux-x64
+          path: |
+            apps/examples/desktop-app/src-tauri/target/release/bundle/deb/*.deb
+            apps/examples/desktop-app/src-tauri/target/release/bundle/appimage/*.AppImage
+            apps/examples/desktop-app/src-tauri/target/release/bundle/rpm/*.rpm
+          if-no-files-found: error
